@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.lab_week_09.ui.theme.*
 import com.example.lab_week_09.ui.theme.LAB_WEEK_09Theme
 
 class MainActivity : ComponentActivity() {
@@ -33,16 +34,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// ----------------------------------------------
-// DATA MODEL
-// ----------------------------------------------
 data class Student(
     var name: String
 )
 
-// ----------------------------------------------
-// PARENT COMPOSABLE – Handle State
-// ----------------------------------------------
 @Composable
 fun Home() {
 
@@ -69,9 +64,6 @@ fun Home() {
     )
 }
 
-// ----------------------------------------------
-// CHILD COMPOSABLE – Display Views
-// ----------------------------------------------
 @Composable
 fun HomeContent(
     listData: SnapshotStateList<Student>,
@@ -87,21 +79,19 @@ fun HomeContent(
                     .fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(text = stringResource(id = R.string.enter_item))
+
+                OnBackgroundTitleText(text = stringResource(id = R.string.enter_item))
 
                 TextField(
                     value = inputField.name,
                     keyboardOptions = KeyboardOptions(),
-                    onValueChange = {
-                        onInputValueChange(it)
-                    }
+                    onValueChange = { onInputValueChange(it) }
                 )
 
-                Button(
+                PrimaryTextButton(
+                    text = stringResource(id = R.string.button_click),
                     onClick = { onButtonClick() }
-                ) {
-                    Text(text = stringResource(id = R.string.button_click))
-                }
+                )
             }
         }
 
@@ -112,15 +102,12 @@ fun HomeContent(
                     .fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(text = item.name)
+                OnBackgroundItemText(text = item.name)
             }
         }
     }
 }
 
-// ----------------------------------------------
-// PREVIEW
-// ----------------------------------------------
 @Preview(showBackground = true)
 @Composable
 fun PreviewHome() {
