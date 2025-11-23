@@ -19,8 +19,27 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.example.lab_week_09.ui.theme.*
+import com.example.lab_week_09.ui.theme.LAB_WEEK_09Theme
+import com.example.lab_week_09.ui.theme.OnBackgroundItemText
+import com.example.lab_week_09.ui.theme.OnBackgroundTitleText
+import com.example.lab_week_09.ui.theme.PrimaryTextButton
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
+// --------------------------------------------------------------
+// DATA CLASS (no codegen annotation)
+// --------------------------------------------------------------
+data class Student(
+    val name: String
+)
+
+// --------------------------------------------------------------
+// MAIN ACTIVITY
+// --------------------------------------------------------------
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,36 +58,33 @@ class MainActivity : ComponentActivity() {
 }
 
 // --------------------------------------------------------------
-// DATA CLASS
-// --------------------------------------------------------------
-data class Student(
-    var name: String
-)
-
-// --------------------------------------------------------------
 // ROOT NAVIGATION COMPOSABLE
 // --------------------------------------------------------------
 @Composable
 fun App(navController: NavHostController) {
-
     NavHost(
         navController = navController,
         startDestination = "home"
     ) {
-
+        // Home route
         composable("home") {
-            Home { listAsString ->
-                navController.navigate("resultContent/?listData=$listAsString")
+            Home { listJson ->
+                // encode to safely include in url
+                val encoded = URLEncoder.encode(listJson, StandardCharsets.UTF_8.toString())
+                navController.navigate("resultContent/$encoded")
             }
         }
 
+        // Result route with path parameter
         composable(
-            "resultContent/?listData={listData}",
+            "resultContent/{listData}",
             arguments = listOf(navArgument("listData") {
                 type = NavType.StringType
             })
-        ) {
-            ResultContent(it.arguments?.getString("listData").orEmpty())
+        ) { backStackEntry ->
+            val raw = backStackEntry.arguments?.getString("listData").orEmpty()
+            val decoded = URLDecoder.decode(raw, StandardCharsets.UTF_8.toString())
+            ResultContent(decoded)
         }
     }
 }
@@ -80,45 +96,61 @@ fun App(navController: NavHostController) {
 fun Home(
     navigateFromHomeToResult: (String) -> Unit
 ) {
+    // -------------------------------
+    // initial list (could come from JSON or empty)
+    // -------------------------------
+    val initial = listOf(
+        Student("Tanu"),
+        Student("Tina"),
+        Student("Tono")
+    )
 
+    // -------------------------------
+    // STATE LIST (initial)
+    // -------------------------------
     val listData = remember {
-        mutableStateListOf(
-            Student("Tanu"),
-            Student("Tina"),
-            Student("Tono")
-        )
+        mutableStateListOf<Student>().apply {
+            addAll(initial)
+        }
     }
 
-    var inputField = remember { mutableStateOf(Student("")) }
+    var inputField by remember { mutableStateOf("") }
 
+    // when user presses Finish we convert list -> JSON and navigate
     HomeContent(
-        listData,
-        inputField.value,
-        { input -> inputField.value = inputField.value.copy(name = input) },
-        {
-            if (inputField.value.name.isNotBlank()) {
-                listData.add(inputField.value)
-                inputField.value = Student("")
+        listData = listData,
+        inputFieldValue = inputField,
+        onInputValueChange = { inputField = it },
+        onButtonClick = {
+            if (inputField.isNotBlank()) {
+                listData.add(Student(inputField))
+                inputField = ""
             }
         },
-        {
-            navigateFromHomeToResult(listData.toList().toString())
+        navigateFromHomeToResult = {
+            // Convert listData to JSON via Moshi
+            val moshi = Moshi.Builder()
+                .add(KotlinJsonAdapterFactory())
+                .build()
+            val listType = Types.newParameterizedType(List::class.java, Student::class.java)
+            val adapter = moshi.adapter<List<Student>>(listType)
+            val json = adapter.toJson(listData.toList())
+            navigateFromHomeToResult(json)
         }
     )
 }
 
 // --------------------------------------------------------------
-// HOME CONTENT (CHILD COMPOSABLE)
+// HOME CONTENT UI
 // --------------------------------------------------------------
 @Composable
 fun HomeContent(
     listData: SnapshotStateList<Student>,
-    inputField: Student,
+    inputFieldValue: String,
     onInputValueChange: (String) -> Unit,
     onButtonClick: () -> Unit,
     navigateFromHomeToResult: () -> Unit
 ) {
-
     LazyColumn {
         item {
             Column(
@@ -131,9 +163,10 @@ fun HomeContent(
                 OnBackgroundTitleText(text = stringResource(id = R.string.enter_item))
 
                 TextField(
-                    value = inputField.name,
-                    keyboardOptions = KeyboardOptions(),
-                    onValueChange = { onInputValueChange(it) }
+                    value = inputFieldValue,
+                    keyboardOptions = KeyboardOptions.Default,
+                    onValueChange = { onInputValueChange(it) },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Row {
@@ -164,28 +197,48 @@ fun HomeContent(
 }
 
 // --------------------------------------------------------------
-// RESULT CONTENT COMPOSABLE
+// RESULT PAGE: receives JSON string, parse and show list
 // --------------------------------------------------------------
 @Composable
-fun ResultContent(listData: String) {
+fun ResultContent(listJson: String) {
+    // parse json to List<Student>
+    val students = remember(listJson) {
+        try {
+            val moshi = Moshi.Builder()
+                .add(KotlinJsonAdapterFactory())
+                .build()
+            val listType = Types.newParameterizedType(List::class.java, Student::class.java)
+            val adapter = moshi.adapter<List<Student>>(listType)
+            adapter.fromJson(listJson) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList<Student>()
+        }
+    }
 
+    // display json (optional) then list
     Column(
         modifier = Modifier
-            .padding(vertical = 4.dp)
-            .fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(8.dp)
+            .fillMaxSize()
     ) {
-        OnBackgroundItemText(text = listData)
+        OnBackgroundTitleText(text = "Result (raw JSON)")
+        OnBackgroundItemText(text = listJson)
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OnBackgroundTitleText(text = "Result (parsed list)")
+        LazyColumn {
+            items(students) { s ->
+                OnBackgroundItemText(text = s.name)
+            }
+        }
     }
 }
 
-// --------------------------------------------------------------
-// PREVIEW
-// --------------------------------------------------------------
 @Preview(showBackground = true)
 @Composable
 fun PreviewHome() {
     LAB_WEEK_09Theme {
-        Home({})
+        Home({ /* no-op preview */ })
     }
 }
