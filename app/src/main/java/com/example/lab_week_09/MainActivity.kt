@@ -15,8 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.compose.*
+import androidx.navigation.navArgument
 import com.example.lab_week_09.ui.theme.*
-import com.example.lab_week_09.ui.theme.LAB_WEEK_09Theme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,19 +30,56 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Home()
+                    val navController = rememberNavController()
+                    App(navController)
                 }
             }
         }
     }
 }
 
+// --------------------------------------------------------------
+// DATA CLASS
+// --------------------------------------------------------------
 data class Student(
     var name: String
 )
 
+// --------------------------------------------------------------
+// ROOT NAVIGATION COMPOSABLE
+// --------------------------------------------------------------
 @Composable
-fun Home() {
+fun App(navController: NavHostController) {
+
+    NavHost(
+        navController = navController,
+        startDestination = "home"
+    ) {
+
+        composable("home") {
+            Home { listAsString ->
+                navController.navigate("resultContent/?listData=$listAsString")
+            }
+        }
+
+        composable(
+            "resultContent/?listData={listData}",
+            arguments = listOf(navArgument("listData") {
+                type = NavType.StringType
+            })
+        ) {
+            ResultContent(it.arguments?.getString("listData").orEmpty())
+        }
+    }
+}
+
+// --------------------------------------------------------------
+// HOME COMPOSABLE
+// --------------------------------------------------------------
+@Composable
+fun Home(
+    navigateFromHomeToResult: (String) -> Unit
+) {
 
     val listData = remember {
         mutableStateListOf(
@@ -60,17 +100,25 @@ fun Home() {
                 listData.add(inputField.value)
                 inputField.value = Student("")
             }
+        },
+        {
+            navigateFromHomeToResult(listData.toList().toString())
         }
     )
 }
 
+// --------------------------------------------------------------
+// HOME CONTENT (CHILD COMPOSABLE)
+// --------------------------------------------------------------
 @Composable
 fun HomeContent(
     listData: SnapshotStateList<Student>,
     inputField: Student,
     onInputValueChange: (String) -> Unit,
-    onButtonClick: () -> Unit
+    onButtonClick: () -> Unit,
+    navigateFromHomeToResult: () -> Unit
 ) {
+
     LazyColumn {
         item {
             Column(
@@ -88,10 +136,17 @@ fun HomeContent(
                     onValueChange = { onInputValueChange(it) }
                 )
 
-                PrimaryTextButton(
-                    text = stringResource(id = R.string.button_click),
-                    onClick = { onButtonClick() }
-                )
+                Row {
+                    PrimaryTextButton(
+                        text = stringResource(id = R.string.button_click)
+                    ) { onButtonClick() }
+
+                    PrimaryTextButton(
+                        text = stringResource(id = R.string.button_navigate)
+                    ) {
+                        navigateFromHomeToResult()
+                    }
+                }
             }
         }
 
@@ -108,10 +163,29 @@ fun HomeContent(
     }
 }
 
+// --------------------------------------------------------------
+// RESULT CONTENT COMPOSABLE
+// --------------------------------------------------------------
+@Composable
+fun ResultContent(listData: String) {
+
+    Column(
+        modifier = Modifier
+            .padding(vertical = 4.dp)
+            .fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        OnBackgroundItemText(text = listData)
+    }
+}
+
+// --------------------------------------------------------------
+// PREVIEW
+// --------------------------------------------------------------
 @Preview(showBackground = true)
 @Composable
 fun PreviewHome() {
     LAB_WEEK_09Theme {
-        Home()
+        Home({})
     }
 }
